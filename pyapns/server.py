@@ -22,7 +22,6 @@ APNS_SERVER_PORT = 2195
 FEEDBACK_SERVER_SANDBOX_HOSTNAME = "feedback.sandbox.push.apple.com"
 FEEDBACK_SERVER_HOSTNAME = "feedback.push.apple.com"
 FEEDBACK_SERVER_PORT = 2196
-FEEDBACK_SERVER_PORT = 2196
 MAX_CONNECTION_TIME = datetime.timedelta(minutes=60)
 
 app_ids = {}  # {'app_id': APNSService()}
@@ -188,7 +187,7 @@ class APNSService(service.Service):
     clientProtocolFactory = APNSClientFactory
     feedbackProtocolFactory = APNSFeedbackClientFactory
 
-    def __init__(self, cert_path, environment, timeout=15, on_failure_received=lambda x:x):
+    def __init__(self, cert_path, environment, timeout=15, persistent_timeout=300, on_failure_received=lambda x:x):
         log.msg('APNSService __init__')
         self.factory = None
         self.factory_connect_time = None
@@ -196,6 +195,7 @@ class APNSService(service.Service):
         self.cert_path = cert_path
         self.raw_mode = False
         self.timeout = timeout
+        self.persistent_timeout = persistent_timeout
         self.on_failure_received = on_failure_received
 
     def getContextFactory(self):
@@ -203,10 +203,10 @@ class APNSService(service.Service):
 
     def write(self, notifications):
         "Connect to the APNS service and send notifications"
-	if self.factory: 
+        if self.factory:
             conn_time = datetime.datetime.now() - self.factory_connect_time
-            if conn_time > MAX_CONNECTION_TIME:
-            	log.msg('APNSService write (disconnecting based on max connection time)')
+            if conn_time > datetime.timedelta(seconds=self.persistent_timeout):
+                log.msg('APNSService write (disconnecting based on max connection time)')
                 self.factory.clientProtocol.transport.loseConnection()
                 self.factory.stopTrying()
                 self.factory = None
@@ -291,7 +291,7 @@ class APNSServer(xmlrpc.XMLRPC):
                 404, 'The app_id specified has not been provisioned.')
         return self.app_ids[app_id]
 
-    def xmlrpc_provision(self, app_id, path_to_cert_or_cert, environment, timeout=15):
+    def xmlrpc_provision(self, app_id, path_to_cert_or_cert, environment, timeout=15, persistent_timeout=300):
         """ Starts an APNSService for the this app_id and keeps it running
 
           Arguments:
@@ -312,7 +312,7 @@ class APNSServer(xmlrpc.XMLRPC):
         if not app_id in self.app_ids:
             # log.msg('provisioning ' + app_id + ' environment ' + environment)
             self.app_ids[app_id] = APNSService(
-                path_to_cert_or_cert, environment, timeout)
+                path_to_cert_or_cert, environment, timeout, persistent_timeout)
 
     def xmlrpc_notify(self, app_id, token_or_token_list, aps_dict_or_list):
         """ Sends push notifications to the Apple APNS server. Multiple

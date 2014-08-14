@@ -268,9 +268,9 @@ def default_callback(func):
 
 @default_callback
 @reprovision_and_retry
-def provision(app_id, path_to_cert, environment, timeout=15, async=False,
+def provision(app_id, path_to_cert, environment, timeout=15, persistent_timeout=300, async=False,
               callback=None, errback=None):
-    args = [app_id, path_to_cert, environment, timeout]
+    args = [app_id, path_to_cert, environment, timeout, persistent_timeout]
     f_args = ['provision', args, callback, errback]
     if not async:
         return _xmlrpc_thread(*f_args)
